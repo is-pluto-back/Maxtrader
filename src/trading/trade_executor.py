@@ -28,10 +28,12 @@ sys.path.insert(0, os.path.join(project_root, 'src'))
 try:
     from .alpaca_manager import AlpacaManager, OrderRequest, OrderResponse
     from ..strategies.base_strategy import BaseStrategy, StrategyResult
+    from .trades_logger import log_execution_result, set_agent_running
 except ImportError:
     # Fallback for direct module testing
-    from alpaca_manager import AlpacaManager, OrderRequest, OrderResponse
+    from trading.alpaca_manager import AlpacaManager, OrderRequest, OrderResponse
     from strategies.base_strategy import BaseStrategy, StrategyResult
+    from trading.trades_logger import log_execution_result, set_agent_running
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +166,12 @@ class TradeExecutor:
         )
 
         self.logger.info(f"Strategy execution completed: {len(orders_placed)} orders placed, {len(orders_failed)} failed")
+
+        try:
+            log_execution_result(result, portfolio_after)
+        except Exception as e:
+            self.logger.warning(f"Failed to write trades.json: {e}")
+
         return result
 
     def execute_portfolio_rebalance(self, target_weights: Dict[str, float],
@@ -232,6 +240,12 @@ class TradeExecutor:
         )
 
         self.logger.info(f"Portfolio rebalance completed: {len(orders_placed)} orders placed, {len(orders_failed)} failed")
+
+        try:
+            log_execution_result(result, portfolio_after)
+        except Exception as e:
+            self.logger.warning(f"Failed to write trades.json: {e}")
+
         return result
 
     def _weights_to_orders(self, weights_df: pd.DataFrame, account_name: str) -> List[OrderRequest]:

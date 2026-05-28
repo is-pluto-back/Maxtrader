@@ -160,3 +160,11 @@ ehthumbs.db
 Thumbs.db
 
 TODO
+# Trading data
+trades.json
+
+# Graphify
+graphify-out/
+
+# Node
+node_modules/

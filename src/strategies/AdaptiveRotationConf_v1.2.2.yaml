@@ -220,3 +220,18 @@ state:
 audit:
   enabled: true
   log_level: detailed
+
+# -----------------------
+# Sentiment Analysis
+# -----------------------
+sentiment:
+  enabled: true
+  lookback_days: 7                    # how far back to look for news
+  decay_half_life_days: 2.0           # recent news weighted more heavily
+  min_articles: 2                     # minimum articles to form a score
+  group_strength_weight: 0.15         # how much sentiment adjusts group IR
+  intra_group_weight: 0.20            # how much sentiment adjusts stock Z-scores
+  negative_regime_threshold: -0.40    # market sentiment below this = extra risk signal
+  sources:
+    - fmp                             # Financial Modeling Prep news (existing)
+    - finnhub                         # Finnhub news (free tier, 60 calls/min)

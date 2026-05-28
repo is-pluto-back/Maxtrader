@@ -27,6 +27,17 @@ from src.strategies.adaptive_rotation import AdaptiveRotationEngine
 from src.strategies.adaptive_rotation.data_preprocessor import DataPreprocessor
 
 
+def _init_data_layer():
+    """Initialize DataStore and FMPFetcher for sentiment analysis."""
+    try:
+        from src.data.data_fetcher import FMPFetcher
+        fetcher = FMPFetcher()
+        return fetcher.data_store, fetcher
+    except Exception as e:
+        print(f"Note: Sentiment data layer not available ({e}), running without news.")
+        return None, None
+
+
 def run_single_date(config_path: str, as_of_date: str, data_dir: str = None):
     """
     Run strategy for a single date
@@ -49,11 +60,15 @@ def run_single_date(config_path: str, as_of_date: str, data_dir: str = None):
     preprocessor = DataPreprocessor(config)
     preprocessor.load_and_prepare(data_dir=data_dir)
     
-    # 2. Initialize engine with preprocessor
+    # 2. Initialize engine with preprocessor + sentiment
     print("2. Initializing strategy engine...")
-    engine = AdaptiveRotationEngine(config=config_path, data_preprocessor=preprocessor)
+    data_store, data_fetcher = _init_data_layer()
+    engine = AdaptiveRotationEngine(
+        config=config_path, data_preprocessor=preprocessor,
+        data_store=data_store, data_fetcher=data_fetcher,
+    )
     config = engine.get_config()
-    
+
     # Get data as of the decision date
     raw_data = preprocessor.get_data_as_of(as_of_date)
     price_data = {symbol: df['close'] for symbol, df in raw_data.items()}
@@ -123,11 +138,15 @@ def run_backtest(config_path: str, start_date: str, end_date: str,
     preprocessor = DataPreprocessor(config)
     preprocessor.load_and_prepare(data_dir=data_dir)
     
-    # 2. Initialize engine with preprocessor
+    # 2. Initialize engine with preprocessor + sentiment
     print("2. Initializing strategy engine...")
-    engine = AdaptiveRotationEngine(config=config_path, data_preprocessor=preprocessor)
+    data_store, data_fetcher = _init_data_layer()
+    engine = AdaptiveRotationEngine(
+        config=config_path, data_preprocessor=preprocessor,
+        data_store=data_store, data_fetcher=data_fetcher,
+    )
     config = engine.get_config()
-    
+
     # 3. Generate decision dates
     weekly_dates = pd.date_range(start_date, end_date, freq=freq)
     

@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 YAML Auto-Write with GICS Preclassification
 

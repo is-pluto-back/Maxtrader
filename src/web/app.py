@@ -165,7 +165,7 @@ def show_data_management():
             if st.button("Fetch S&P 500 Components"):
                 with st.spinner("Fetching data..."):
                     try:
-                        from ..data.data_fetcher import fetch_sp500_tickers
+                        from data.data_fetcher import fetch_sp500_tickers
                         tickers = fetch_sp500_tickers()
                         st.success(f"Successfully fetched {len(tickers)} tickers")
                         st.info(f"Sample tickers: {tickers[:10]}")
@@ -175,7 +175,7 @@ def show_data_management():
             if st.button("Fetch Fundamental Data"):
                 with st.spinner("Fetching fundamental data..."):
                     try:
-                        from ..data.data_fetcher import fetch_fundamental_data
+                        from data.data_fetcher import fetch_fundamental_data
                         fundamentals = fetch_fundamental_data(
                             ['AAPL', 'MSFT', 'GOOGL'], '2020-01-01', '2023-12-31'
                         )
@@ -197,7 +197,7 @@ def show_data_management():
         if st.button("Process Raw Data"):
             with st.spinner("Processing data..."):
                 try:
-                    from ..data.data_processor import process_fundamentals, process_prices
+                    from data.data_processor import process_fundamentals, process_prices
 
                     # Process sample data
                     fundamentals = process_fundamentals("./data/fundamentals.csv")
@@ -213,7 +213,7 @@ def show_data_management():
         if st.button("Generate ML Dataset"):
             with st.spinner("Creating ML dataset..."):
                 try:
-                    from ..data.data_processor import create_ml_dataset
+                    from data.data_processor import create_ml_dataset
 
                     X, y = create_ml_dataset("./data/fundamentals.csv", "./data/prices.csv")
                     st.success("ML dataset created")
@@ -382,7 +382,7 @@ def show_live_trading():
             if st.button("Refresh Portfolio"):
                 with st.spinner("Loading portfolio..."):
                     try:
-                        from ..trading.alpaca_manager import AlpacaManager
+                        from trading.alpaca_manager import AlpacaManager
                         manager = AlpacaManager([account])
 
                         # Get account info
@@ -426,7 +426,7 @@ def show_live_trading():
                 submitted = st.form_submit_button("Place Order")
                 if submitted:
                     try:
-                        from ..trading.alpaca_manager import AlpacaManager, OrderRequest
+                        from trading.alpaca_manager import AlpacaManager, OrderRequest
                         manager = AlpacaManager([account])
 
                         order = OrderRequest(
@@ -450,8 +450,8 @@ def show_live_trading():
             if st.button("Execute Sample Strategy"):
                 with st.spinner("Executing strategy..."):
                     try:
-                        from ..trading.trade_executor import TradeExecutor
-                        from ..strategies.base_strategy import StrategyConfig, EqualWeightStrategy
+                        from trading.trade_executor import TradeExecutor
+                        from strategies.base_strategy import StrategyConfig, EqualWeightStrategy
 
                         manager = AlpacaManager([account])
                         executor = TradeExecutor(manager)

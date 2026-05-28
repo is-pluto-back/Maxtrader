@@ -4,6 +4,14 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$PROJECT_ROOT"
 
+# ── Activate venv if present ─────────────────────────────
+PYTHON="python3"
+PIP="pip3"
+if [[ -d "$PROJECT_ROOT/venv" ]]; then
+    PYTHON="$PROJECT_ROOT/venv/bin/python"
+    PIP="$PROJECT_ROOT/venv/bin/pip"
+fi
+
 # ── Defaults ──────────────────────────────────────────────
 STRATEGY=""
 CONFIG=""
@@ -21,7 +29,7 @@ ACCOUNT=""               # Alpaca account name (paper mode)
 # ── Strategy registry (add new strategies here) ──────────
 # Format: strategy_name|config_path|runner_path
 STRATEGIES="
-adaptive_rotation|src/strategies/AdaptiveRotationConf_v1.2.1.yaml|src/strategies/run_adaptive_rotation_strategy.py
+adaptive_rotation|src/strategies/AdaptiveRotationConf_v1.2.2.yaml|src/strategies/run_adaptive_rotation_strategy.py
 "
 
 resolve_strategy() {
@@ -243,21 +251,21 @@ echo ""
 echo "[1/3] Checking dependencies..."
 
 MISSING=()
-python3 -c "import yaml"                    2>/dev/null || MISSING+=("pyyaml")
-python3 -c "import pandas_market_calendars" 2>/dev/null || MISSING+=("pandas-market-calendars")
-python3 -c "import yfinance"                2>/dev/null || MISSING+=("yfinance")
-python3 -c "import pandas"                  2>/dev/null || MISSING+=("pandas")
-python3 -c "import numpy"                   2>/dev/null || MISSING+=("numpy")
-python3 -c "import scipy"                   2>/dev/null || MISSING+=("scipy")
+$PYTHON -c "import yaml"                    2>/dev/null || MISSING+=("pyyaml")
+$PYTHON -c "import pandas_market_calendars" 2>/dev/null || MISSING+=("pandas-market-calendars")
+$PYTHON -c "import yfinance"                2>/dev/null || MISSING+=("yfinance")
+$PYTHON -c "import pandas"                  2>/dev/null || MISSING+=("pandas")
+$PYTHON -c "import numpy"                   2>/dev/null || MISSING+=("numpy")
+$PYTHON -c "import scipy"                   2>/dev/null || MISSING+=("scipy")
 
 if [[ "$MODE" == "paper" ]]; then
-    python3 -c "import dotenv"   2>/dev/null || MISSING+=("python-dotenv")
-    python3 -c "import requests" 2>/dev/null || MISSING+=("requests")
+    $PYTHON -c "import dotenv"   2>/dev/null || MISSING+=("python-dotenv")
+    $PYTHON -c "import requests" 2>/dev/null || MISSING+=("requests")
 fi
 
 if [[ ${#MISSING[@]} -gt 0 ]]; then
     echo "  Installing: ${MISSING[*]}"
-    pip3 install -q "${MISSING[@]}"
+    $PIP install -q "${MISSING[@]}"
 else
     echo "  All dependencies OK"
 fi
@@ -271,7 +279,7 @@ if [[ "$SKIP_DOWNLOAD" == true ]] && [[ -d "$DATA_DIR" ]]; then
     echo "  Skipping download ($FILE_COUNT files in $DATA_DIR)"
 else
     mkdir -p "$DATA_DIR"
-    python3 - "$CONFIG" "$DATA_DIR" <<'PYEOF'
+    $PYTHON - "$CONFIG" "$DATA_DIR" <<'PYEOF'
 import sys, yaml, yfinance as yf, pandas as pd
 from pathlib import Path
 
@@ -333,21 +341,21 @@ echo "[3/3] Running strategy..."
 
 if [[ "$MODE" == "backtest" ]]; then
     # ── Backtest mode ──────────────────────────────────
-    CMD=(python3 "$RUNNER" --config "$CONFIG" --data-dir "$DATA_DIR")
+    CMD=($PYTHON "$RUNNER" --config "$CONFIG" --data-dir "$DATA_DIR")
     CMD+=(--backtest --start "$START_DATE" --end "$END_DATE" --freq "$FREQ")
     [[ "$NO_FAST_TRACK" == true ]] && CMD+=(--no-daily-fast-track)
     "${CMD[@]}"
 
 elif [[ "$MODE" == "single" ]]; then
     # ── Single date mode (signal only) ─────────────────
-    CMD=(python3 "$RUNNER" --config "$CONFIG" --data-dir "$DATA_DIR")
+    CMD=($PYTHON "$RUNNER" --config "$CONFIG" --data-dir "$DATA_DIR")
     CMD+=(--date "$SINGLE_DATE")
     "${CMD[@]}"
 
 elif [[ "$MODE" == "paper" ]]; then
     # ── Paper trading mode ─────────────────────────────
     # Step 3a: Generate signal, then 3b: Execute on Alpaca
-    python3 - "$CONFIG" "$DATA_DIR" "$SINGLE_DATE" "$DRY_RUN" "$ACCOUNT" <<'PYEOF'
+    $PYTHON - "$CONFIG" "$DATA_DIR" "$SINGLE_DATE" "$DRY_RUN" "$ACCOUNT" <<'PYEOF'
 import sys, json
 from pathlib import Path
 from datetime import datetime

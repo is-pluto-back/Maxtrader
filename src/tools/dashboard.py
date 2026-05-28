@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """Generate a standalone HTML dashboard from ml_bucket_selection Excel output.
 
 Usage:

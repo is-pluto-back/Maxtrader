@@ -26,6 +26,13 @@ from .intra_group_ranking import IntraGroupRanker
 from .exception_framework import ExceptionDetector
 from .risk_manager import RiskManager, PositionState
 from .portfolio_builder import PortfolioBuilder, PortfolioWeights
+from .sentiment_signal import (
+    SentimentAnalyzer,
+    SentimentResult,
+    apply_sentiment_to_group_strength,
+    apply_sentiment_to_rankings,
+    sentiment_regime_overlay,
+)
 
 
 # ============================================================================
@@ -43,10 +50,13 @@ class AuditLog:
     # Market regime
     regime: Dict[str, Any]
     
+    # Sentiment analysis
+    sentiment: Dict[str, Any]
+
     # Signal generation
     group_strength: Dict[str, Any]
     asset_ranking: Dict[str, Any]
-    
+
     # Exception framework
     exceptions: Dict[str, Any]
     
@@ -108,15 +118,21 @@ class AdaptiveRotationEngine:
         config: Optional[Union[str, Path, AdaptiveRotationConfig]] = None,
         config_path: Optional[Union[str, Path]] = None,
         data_preprocessor: Optional[DataPreprocessor] = None,
+        enable_sentiment: bool = True,
+        data_store=None,
+        data_fetcher=None,
     ):
         """
         Initialize strategy engine
-        
+
         Args:
             config: Config object, path to YAML, or None
             config_path: Alternative way to specify config path
             data_preprocessor: Optional DataPreprocessor instance for accessing daily data
-        
+            enable_sentiment: Enable news sentiment integration (default True)
+            data_store: DataStore instance for reading cached news
+            data_fetcher: DataFetcher instance for fetching new news
+
         Note:
             Provide either `config` or `config_path`, not both
         """
@@ -129,13 +145,18 @@ class AdaptiveRotationEngine:
             self.config = config
         else:
             raise ValueError("Must provide either config or config_path")
-        
+
         # Store data preprocessor for accessing daily data
         self.data_preprocessor = data_preprocessor
-        
+
+        # Sentiment configuration
+        self.enable_sentiment = enable_sentiment
+        self._data_store = data_store
+        self._data_fetcher = data_fetcher
+
         # Initialize sub-modules
         self._init_modules()
-        
+
         # State tracking
         self._current_positions: Dict[str, PositionState] = {}
     
@@ -156,9 +177,24 @@ class AdaptiveRotationEngine:
         
         # Risk management
         self.risk_manager = RiskManager.from_config(self.config)
-        
+
         # Portfolio construction
         self.portfolio_builder = PortfolioBuilder(self.config)
+
+        # Sentiment analysis
+        self.sentiment_analyzer = None
+        if self.enable_sentiment:
+            try:
+                self.sentiment_analyzer = SentimentAnalyzer(
+                    data_store=self._data_store,
+                    data_fetcher=self._data_fetcher,
+                    lookback_days=7,
+                    decay_half_life_days=2.0,
+                    min_articles=2,
+                )
+            except Exception as e:
+                print(f"Warning: Sentiment analyzer init failed, running without sentiment: {e}")
+                self.sentiment_analyzer = None
     
     def run(
         self,
@@ -219,15 +255,41 @@ class AdaptiveRotationEngine:
         # === STEP 2: Group Strength Analysis ===
         group_strength = self._analyze_group_strength(prices_as_of, as_of_date)
         audit_data['group_strength'] = self._audit_group_strength(group_strength)
-        
+
+        # === STEP 2.5: Sentiment Analysis ===
+        sentiment_result = self._analyze_sentiment(prices_as_of, as_of_date, mode)
+        if sentiment_result:
+            audit_data['sentiment'] = sentiment_result.to_audit_dict()
+
+            # Apply sentiment overlay to group strength rankings
+            group_strength = apply_sentiment_to_group_strength(
+                group_strength, sentiment_result, sentiment_weight=0.15
+            )
+            audit_data['group_strength']['sentiment_adjusted'] = True
+
+            # Check if sentiment signals extreme bearishness
+            sent_overlay = sentiment_regime_overlay(sentiment_result)
+            audit_data['sentiment']['regime_overlay'] = sent_overlay
+        else:
+            audit_data['sentiment'] = {'enabled': False}
+
         # === STEP 3: Intra-Group Ranking ===
         group_rankings = self._rank_assets_in_groups(
             prices_as_of,
             group_strength.active_groups,
             as_of_date
         )
-        audit_data['asset_ranking'] = self._audit_asset_ranking(group_rankings)
-        
+
+        # Apply sentiment to individual stock rankings
+        if sentiment_result:
+            group_rankings = apply_sentiment_to_rankings(
+                group_rankings, sentiment_result, sentiment_weight=0.20
+            )
+            audit_data['asset_ranking'] = self._audit_asset_ranking(group_rankings)
+            audit_data['asset_ranking']['sentiment_adjusted'] = True
+        else:
+            audit_data['asset_ranking'] = self._audit_asset_ranking(group_rankings)
+
         # === STEP 4: Exception Detection ===
         exceptions = self._detect_exceptions(
             group_rankings, 
@@ -282,6 +344,35 @@ class AdaptiveRotationEngine:
         
         return prices_dict
     
+    def _analyze_sentiment(
+        self,
+        prices: Dict[str, pd.Series],
+        as_of_date: pd.Timestamp,
+        mode: str = "backtest",
+    ) -> Optional[SentimentResult]:
+        """Run sentiment analysis on all strategy symbols."""
+        if not self.sentiment_analyzer:
+            return None
+
+        try:
+            all_symbols = list(prices.keys())
+            group_map = {
+                name: cfg.symbols
+                for name, cfg in self.config.asset_groups.items()
+            }
+            fetch_new = mode != "backtest"
+
+            return self.sentiment_analyzer.analyze(
+                symbols=all_symbols,
+                group_map=group_map,
+                as_of_date=as_of_date,
+                fetch_new=fetch_new,
+                analyze_sentiment=fetch_new,
+            )
+        except Exception as e:
+            print(f"Warning: Sentiment analysis failed, continuing without: {e}")
+            return None
+
     def _detect_regime(
         self,
         prices: Dict[str, pd.Series],
