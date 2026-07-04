@@ -76,6 +76,68 @@ Default cadence: daily brief + social thread every weekday 45 min after
 the close; weekly newsletter on Sunday. After this, the pipeline runs
 itself.
 
+## Media generation (images, video, voiceover)
+
+Every run also produces visual media, with the same "works with zero
+keys, gets better with keys" tiering:
+
+| Asset | No keys needed | With keys |
+|---|---|---|
+| **Image cards** (1080×1080) | Pillow-rendered branded market + rotation cards | + AI hero image via OpenAI (`media.use_ai_images: true`) |
+| **Video script** | Template SCENE/VISUAL/VO script | LLM-written 60-second short script |
+| **Voiceover** | — (video is silent) | ElevenLabs (`ELEVENLABS_API_KEY`) or OpenAI TTS |
+| **Daily short** (1080×1920 MP4) | ffmpeg slideshow of the day's frames + voiceover | same, with better script/voice |
+
+ffmpeg is resolved from PATH or from `pip install imageio-ffmpeg` (a
+bundled static binary — no system install). Media attaches automatically:
+Telegram gets the photo/video, Discord gets attachments, the blog embeds
+the market card, X attaches the card to the first tweet (when the token
+has `media.write` scope). Configure under `media:` in
+`content_pipeline.yaml`; disable with `enable_images: false` /
+`enable_video: false`.
+
+## Deploying to Vercel (public site + autonomous cron)
+
+The `web/` directory is a self-contained Vercel project:
+
+- **`/`** — public landing page that renders today's brief, thread,
+  newsletter, and video script live (SEO surface + newsletter funnel)
+- **`/api/brief?type=…`** — JSON API generating content on demand
+  (edge-cached 15 min)
+- **`/api/cron`** — the autonomous heartbeat: Vercel Cron calls it
+  weekdays at 21:45 UTC (45 min after the US close) and it generates +
+  publishes to every channel configured via env vars
+
+### Deploy steps (~5 minutes)
+
+1. Push this repo to GitHub (already done if you're reading this on GitHub).
+2. On [vercel.com/new](https://vercel.com/new), import the repo and set
+   **Root Directory = `web`** (framework preset "Other"). Or from a
+   terminal: `cd web && npx vercel --prod`.
+3. In the Vercel project → Settings → Environment Variables, add:
+   - `CRON_SECRET` — any long random string (protects `/api/cron`)
+   - `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` — for LLM-written content
+   - any channel credentials (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`,
+     `DISCORD_WEBHOOK_URL`, `TWITTER_OAUTH2_ACCESS_TOKEN`,
+     `BUTTONDOWN_API_KEY`) — each channel activates automatically
+4. Redeploy. The cron schedule in `web/vercel.json` activates on the
+   production deployment — after that the pipeline is fully autonomous.
+
+### Notes
+
+- The pipeline package is vendored into `web/_vendor/` so the deploy
+  needs nothing outside `web/`. After changing `src/content_pipeline/`,
+  run `python web/sync_vendor.py` (a test fails if you forget).
+- Vercel's filesystem is read-only except `/tmp`, so on Vercel the blog
+  channel is ephemeral; durable blog posts come from running the cron
+  variant in the repo (crontab or GitHub Actions). The API-based
+  channels (Telegram/Discord/X/Buttondown) are unaffected.
+- Video rendering is skipped on Vercel by default (serverless CPU/time
+  limits); set `VERCEL_ENABLE_VIDEO=1` to try it, or render videos from
+  the repo cron.
+- Test locally first: `python web/dev_server.py` serves the exact same
+  handlers at `http://localhost:3000`.
+
 ## The revenue model
 
 Content alone doesn't make money — the funnel does. This pipeline builds

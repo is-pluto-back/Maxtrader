@@ -26,6 +26,10 @@ openai>=1.40.0
 # Configuration files (also used by the content pipeline)
 PyYAML>=6.0
 
+# Content pipeline media generation
+Pillow>=10.0.0          # branded image cards (no API key needed)
+imageio-ffmpeg>=0.4.9   # bundled ffmpeg binary for short-form video rendering
+
 # Trading calendar (market holidays and trading days)
 pandas-market-calendars>=4.3.0
 # Alternative: exchange-calendars>=4.2.0  # Uncomment if you prefer exchange-calendars
