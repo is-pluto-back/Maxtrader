@@ -23,6 +23,9 @@ alpaca-py>=0.13.0
 # LLM / NLP
 openai>=1.40.0
 
+# Configuration files (also used by the content pipeline)
+PyYAML>=6.0
+
 # Trading calendar (market holidays and trading days)
 pandas-market-calendars>=4.3.0
 # Alternative: exchange-calendars>=4.2.0  # Uncomment if you prefer exchange-calendars

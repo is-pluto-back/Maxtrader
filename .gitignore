@@ -168,3 +168,8 @@ graphify-out/
 
 # Node
 node_modules/
+
+# Content engine artifacts
+content/generated/
+data/content_ledger.json
+logs/content_pipeline.log

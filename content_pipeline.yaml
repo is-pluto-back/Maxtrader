@@ -1,0 +1,61 @@
+# Maxtrader Content Engine configuration
+# =======================================
+# Secrets (API keys/tokens) go in .env — this file is safe to commit.
+# Every field is optional; missing fields use built-in defaults.
+
+brand:
+  name: "Maxtrader Signals"
+  tagline: "AI-driven market regime & rotation intelligence, daily."
+  voice: >
+    Confident, data-driven, concise. Explains quant concepts in plain
+    English. Never hypes, never gives direct buy/sell advice.
+  site_url: ""            # e.g. https://signals.example.com (your GitHub Pages blog)
+  author: "Maxtrader Bot"
+
+llm:
+  anthropic_model: "claude-sonnet-5"   # used if ANTHROPIC_API_KEY is set
+  openai_model: "gpt-4o-mini"          # fallback if OPENAI_API_KEY is set
+  max_tokens: 2000
+  temperature: 0.7
+
+# Which channels each content type fans out to. A channel is skipped
+# automatically when its credentials are missing, so this list is the
+# *maximum* fan-out, not a requirement.
+channels:
+  daily_brief: [blog, telegram, discord]
+  social_thread: [twitter, telegram]
+  newsletter: [buttondown, blog]
+
+# 0=Monday .. 6=Sunday — the weekly newsletter goes out on this weekday.
+newsletter_weekday: 6
+
+monetization:
+  # --- Revenue lever 1: owned audience -> paid newsletter tier ---
+  newsletter_cta: "Get the daily signal in your inbox before the open."
+  newsletter_signup_url: ""   # e.g. https://buttondown.com/maxtrader
+  premium_cta: "Premium members get position-level weights and same-day rebalance alerts."
+  premium_url: ""             # e.g. https://buttondown.com/maxtrader/premium
+
+  # --- Revenue lever 2: affiliate links (auto-inserted when a keyword
+  # appears in the generated content; max 2 per post) ---
+  affiliates: []
+  # affiliates:
+  #   - name: "TradingView"
+  #     url: "https://www.tradingview.com/?aff_id=YOUR_ID"
+  #     blurb: "The charts we use for every regime check."
+  #     keywords: [chart, technical, trend, momentum]
+  #   - name: "Alpaca"
+  #     url: "https://alpaca.markets/?ref=YOUR_ID"
+  #     blurb: "Commission-free API-first broker running our automation."
+  #     keywords: [broker, execution, rebalance, order]
+
+  # --- Revenue lever 3: sponsor slot (leave empty until booked) ---
+  sponsor_slot: ""
+  # sponsor_slot: "This week's brief is brought to you by ExampleCo — ..."
+
+  utm_source: "maxtrader"
+  disclaimer: >
+    This content is generated from an automated trading research system
+    and is for informational and educational purposes only. It is not
+    financial advice. Past performance does not guarantee future results.
+    Do your own research before making investment decisions.
