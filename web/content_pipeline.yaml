@@ -6,11 +6,35 @@
 brand:
   name: "Maxtrader Signals"
   tagline: "AI-driven market regime & rotation intelligence, daily."
+  subject: "an automated adaptive rotation trading strategy's daily market signals"
   voice: >
     Confident, data-driven, concise. Explains quant concepts in plain
     English. Never hypes, never gives direct buy/sell advice.
-  site_url: ""            # e.g. https://signals.example.com (your GitHub Pages blog)
+  site_url: ""            # e.g. https://signals.example.com
   author: "Maxtrader Bot"
+
+# Optional AI-influencer persona for character-consistent visuals in the
+# production pack. Leave name empty for a faceless/brand-graphic channel.
+persona:
+  name: ""
+  appearance: ""
+  wardrobe: ""
+  setting: ""
+  style: ""
+
+# Trend research (`run_content_pipeline.py research`)
+research:
+  geo: "US"
+  subreddits: [investing, stocks]
+  keywords: [market, fed, earnings, rotation, regime]
+  include_hackernews: false
+
+# Data source: this repo's own trading system output.
+source:
+  type: market
+  trades_file: "trades.json"
+  weights_dir: "src/strategies/output/weights/adaptive_rotation"
+  facts_file: ""
 
 llm:
   anthropic_model: "claude-sonnet-5"   # used if ANTHROPIC_API_KEY is set
@@ -18,56 +42,32 @@ llm:
   max_tokens: 2000
   temperature: 0.7
 
-# Which channels each content type fans out to. A channel is skipped
-# automatically when its credentials are missing, so this list is the
-# *maximum* fan-out, not a requirement.
 channels:
   daily_brief: [blog, telegram, discord]
   social_thread: [twitter, telegram]
   newsletter: [buttondown, blog]
-  video_script: [blog]   # the script itself; the rendered video rides along
-                         # with social_thread posts (Telegram/Discord)
+  video_script: [blog]
+  production_pack: []    # internal working doc; add blog to publish it
 
-# Media generation (images always work offline via Pillow; video needs
-# ffmpeg — `pip install imageio-ffmpeg` bundles one; voiceover uses
-# ELEVENLABS_API_KEY or OPENAI_API_KEY when present, else silent)
+newsletter_weekday: 6
+
 media:
   enable_images: true
   enable_video: true
-  use_ai_images: false        # extra AI hero image via OpenAI when key is set
+  use_ai_images: false
   openai_image_model: "gpt-image-1"
   elevenlabs_voice_id: "21m00Tcm4TlvDq8ikWAM"
   openai_tts_model: "gpt-4o-mini-tts"
   openai_tts_voice: "onyx"
   seconds_per_slide: 6
 
-# 0=Monday .. 6=Sunday — the weekly newsletter goes out on this weekday.
-newsletter_weekday: 6
-
 monetization:
-  # --- Revenue lever 1: owned audience -> paid newsletter tier ---
   newsletter_cta: "Get the daily signal in your inbox before the open."
-  newsletter_signup_url: ""   # e.g. https://buttondown.com/maxtrader
+  newsletter_signup_url: ""
   premium_cta: "Premium members get position-level weights and same-day rebalance alerts."
-  premium_url: ""             # e.g. https://buttondown.com/maxtrader/premium
-
-  # --- Revenue lever 2: affiliate links (auto-inserted when a keyword
-  # appears in the generated content; max 2 per post) ---
+  premium_url: ""
   affiliates: []
-  # affiliates:
-  #   - name: "TradingView"
-  #     url: "https://www.tradingview.com/?aff_id=YOUR_ID"
-  #     blurb: "The charts we use for every regime check."
-  #     keywords: [chart, technical, trend, momentum]
-  #   - name: "Alpaca"
-  #     url: "https://alpaca.markets/?ref=YOUR_ID"
-  #     blurb: "Commission-free API-first broker running our automation."
-  #     keywords: [broker, execution, rebalance, order]
-
-  # --- Revenue lever 3: sponsor slot (leave empty until booked) ---
   sponsor_slot: ""
-  # sponsor_slot: "This week's brief is brought to you by ExampleCo — ..."
-
   utm_source: "maxtrader"
   disclaimer: >
     This content is generated from an automated trading research system

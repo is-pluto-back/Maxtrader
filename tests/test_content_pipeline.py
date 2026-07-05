@@ -58,9 +58,9 @@ def test_social_thread_tweets_fit(cfg, snapshot):
 
 
 def test_add_utm_preserves_existing_params():
-    url = add_utm("https://x.com/?ref=abc", "maxtrader", "content", "daily")
+    url = add_utm("https://x.com/?ref=abc", "mybrand", "content", "daily")
     assert "ref=abc" in url
-    assert "utm_source=maxtrader" in url
+    assert "utm_source=mybrand" in url
     assert "utm_campaign=daily" in url
 
 
@@ -71,8 +71,8 @@ def test_monetize_appends_disclaimer_and_cta(snapshot):
     )
     content = GeneratedContent("daily_brief", "T", "The market did things.", "template")
     out = monetize(content, mon)
-    assert "not financial advice" in out.body.lower()
-    assert "utm_source=maxtrader" in out.body
+    assert "financial advice" in out.body.lower()
+    assert "utm_source=content-engine" in out.body
     assert out.body.startswith("The market did things.")
 
 
@@ -160,3 +160,95 @@ def test_pipeline_dry_run_end_to_end(cfg):
     for f in report.preview_files:
         assert f.exists() and f.read_text().strip()
     assert "daily_brief" in report.summary()
+
+
+def test_custom_facts_source(tmp_path):
+    from content_pipeline.snapshot import build_snapshot
+
+    facts = tmp_path / "today.yaml"
+    facts.write_text(
+        "headline: Big launch day\nfacts:\n  - Model X shipped\n  - Benchmarks up 12%\n"
+    )
+    cfg = PipelineConfig()
+    cfg.source.type = "custom"
+    cfg.source.facts_file = str(facts)
+    snap = build_snapshot(cfg, offline=True)
+    assert snap.headline == "Big launch day"
+    assert snap.facts == ["Model X shipped", "Benchmarks up 12%"]
+    assert not snap.demo_mode
+
+    out = generate("daily_brief", cfg, snap, force_provider="template")
+    assert "Big launch day" in out.body
+    assert "Model X shipped" in out.body
+
+
+def test_trends_offline_evergreen():
+    from content_pipeline.trends import research_ideas
+
+    cfg = PipelineConfig()
+    cfg.research.keywords = ["quant trading"]
+    ideas = research_ideas(cfg, offline=True)
+    assert "quant trading" in ideas
+    assert "evergreen" in ideas.lower()
+
+
+def test_trends_heuristic_ranking():
+    from content_pipeline.trends import _heuristic_rank
+
+    signals = ["Celebrity gossip news", "Fed cuts rates again", "Sports final"]
+    top = _heuristic_rank(signals, ["fed", "rates"], top_n=2)
+    assert top[0] == "Fed cuts rates again"
+
+
+def test_production_pack_template(cfg, snapshot):
+    cfg.persona.name = "Adaline"
+    cfg.persona.appearance = "mid-20s, warm smile"
+    out = generate("production_pack", cfg, snapshot, force_provider="template")
+    assert "HOOK (0-3s)" in out.body
+    assert "Adaline" in out.body                 # persona consistency block
+    assert "Midjourney" in out.body
+    assert "Runway" in out.body
+    assert "Title options" in out.body
+
+
+def test_persona_config_loads(tmp_path):
+    yaml_file = tmp_path / "cfg.yaml"
+    yaml_file.write_text(
+        "persona:\n  name: Adaline\n  wardrobe: neutral knitwear\n"
+    )
+    cfg = load_pipeline_config(yaml_file)
+    assert cfg.persona.enabled
+    assert "neutral knitwear" in cfg.persona.consistency_block()
+
+
+def test_ledger_metrics(cfg):
+    ledger = ContentLedger(cfg.ledger_path)
+    ledger.record_metrics("youtube", views=1000, retention_pct=50, ctr_pct=4)
+    ledger.record_metrics("tiktok", views=3000, retention_pct=40)
+    stats = ledger.stats()
+    assert stats["total_views"] == 4000
+    assert stats["avg_retention_pct"] == 45.0
+    assert stats["metrics_logged"] == 2
+
+
+def test_thumbnail_renders(cfg, snapshot, tmp_path):
+    pytest.importorskip("PIL")
+    from content_pipeline.media.image_gen import _thumbnail_card, hook_text
+    from PIL import Image
+
+    assert hook_text(snapshot)  # non-empty for demo data
+    path = _thumbnail_card(snapshot, cfg, tmp_path / "thumb.png")
+    img = Image.open(path)
+    assert img.size == (1280, 720)
+
+
+def test_ledger_review_report(cfg):
+    ledger = ContentLedger(cfg.ledger_path)
+    ledger.record_publish("daily_brief", "T", "template", "telegram", "ok")
+    ledger.record_revenue(50, "newsletter")
+    ledger.record_metrics("youtube", views=9000, retention_pct=52, ctr_pct=2.5, note="short #2")
+    report = ledger.review(days=7)
+    assert "Posts published: **1**" in report
+    assert "$50.00" in report
+    assert "9,000" in report
+    assert "Next iteration" in report

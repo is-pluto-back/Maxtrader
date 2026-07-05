@@ -1,13 +1,17 @@
-"""Market + strategy snapshot: the raw material for every piece of content.
+"""Daily snapshot: the factual raw material for every piece of content.
 
-Pulls from what the trading system already produces, degrading gracefully
-at each step so the pipeline always has *something* to write about:
+Two source types (``source.type`` in ``content_pipeline.yaml``):
 
-1. ``trades.json``            -> live equity curve, positions, P&L
-2. strategy weights output    -> latest rotation targets + regime
-3. index data                 -> free daily OHLC from Stooq (no API key),
-                                 or yfinance if installed
-4. otherwise                  -> clearly-flagged sample data (demo mode)
+- ``market``  — free daily index data from Stooq (no API key) plus, when
+  configured, any trading system's state: a trades/positions JSON
+  (``SOURCE_TRADES_FILE``) and a directory of target-weight CSVs
+  (``SOURCE_WEIGHTS_DIR``). See docs/CONTENT_PIPELINE.md for the format.
+- ``custom``  — a YAML/JSON facts file (``SOURCE_FACTS_FILE``) written by
+  you or another job: ``{headline: str, facts: [str, ...]}`` — so any
+  niche can drive the engine.
+
+Every step degrades gracefully; with no sources at all the pipeline
+runs on clearly-flagged sample data so it never blocks.
 """
 
 import csv
@@ -15,17 +19,14 @@ import io
 import json
 import logging
 from dataclasses import dataclass, field, asdict
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 from typing import Dict, List, Optional
 
 import requests
+import yaml
 
 log = logging.getLogger("content-pipeline.snapshot")
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-TRADES_FILE = PROJECT_ROOT / "trades.json"
-WEIGHTS_DIR = PROJECT_ROOT / "src" / "strategies" / "output" / "weights" / "adaptive_rotation"
 
 # Stooq is a free, keyless source for daily index data.
 STOOQ_SYMBOLS = {
@@ -54,6 +55,7 @@ class Position:
 @dataclass
 class MarketSnapshot:
     as_of: str
+    # market source fields
     indexes: List[IndexMove] = field(default_factory=list)
     regime: Optional[str] = None
     equity: Optional[float] = None
@@ -62,6 +64,9 @@ class MarketSnapshot:
     positions: List[Position] = field(default_factory=list)
     target_weights: Dict[str, float] = field(default_factory=dict)
     recent_trades: List[dict] = field(default_factory=list)
+    # custom source fields
+    headline: Optional[str] = None
+    facts: List[str] = field(default_factory=list)
     demo_mode: bool = False
 
     def to_dict(self) -> dict:
@@ -73,6 +78,9 @@ class MarketSnapshot:
         lines = [f"Date: {self.as_of}"]
         if self.demo_mode:
             lines.append("NOTE: sample/demo data (no live feeds connected)")
+        if self.headline:
+            lines.append(f"Headline: {self.headline}")
+        lines.extend(self.facts)
         for ix in self.indexes:
             lines.append(f"{ix.name}: {ix.close:,.2f} ({ix.change_pct:+.2f}%)")
         if self.regime:
@@ -140,20 +148,21 @@ def _load_indexes() -> List[IndexMove]:
     return moves
 
 
-def _load_trades_state() -> dict:
-    if TRADES_FILE.exists():
+def _load_trades_state(trades_file: Optional[Path]) -> dict:
+    if trades_file and trades_file.exists():
         try:
-            return json.loads(TRADES_FILE.read_text())
+            return json.loads(trades_file.read_text())
         except Exception as e:
-            log.warning(f"Could not parse trades.json: {e}")
+            log.warning(f"Could not parse {trades_file}: {e}")
     return {}
 
 
-def _load_latest_weights() -> Dict[str, float]:
-    """Read the most recent weights CSV emitted by the rotation strategy."""
-    if not WEIGHTS_DIR.exists():
+def _load_latest_weights(weights_dir: Optional[Path]) -> Dict[str, float]:
+    """Read the most recent target-weights CSV (columns: symbol/ticker
+    /asset + weight/target_weight)."""
+    if not weights_dir or not weights_dir.exists():
         return {}
-    candidates = sorted(WEIGHTS_DIR.glob("*.csv"))
+    candidates = sorted(weights_dir.glob("*.csv"))
     if not candidates:
         return {}
     weights: Dict[str, float] = {}
@@ -170,6 +179,15 @@ def _load_latest_weights() -> Dict[str, float]:
     except Exception as e:
         log.warning(f"Could not read weights file {candidates[-1]}: {e}")
     return weights
+
+
+def _load_custom_facts(facts_file: Optional[Path]) -> dict:
+    if facts_file and facts_file.exists():
+        try:
+            return yaml.safe_load(facts_file.read_text()) or {}
+        except Exception as e:
+            log.warning(f"Could not parse facts file {facts_file}: {e}")
+    return {}
 
 
 def _demo_snapshot(as_of: str) -> MarketSnapshot:
@@ -201,16 +219,28 @@ def _demo_snapshot(as_of: str) -> MarketSnapshot:
     )
 
 
-def build_snapshot(offline: bool = False) -> MarketSnapshot:
-    """Assemble today's snapshot from all available sources."""
+def build_snapshot(cfg=None, offline: bool = False) -> MarketSnapshot:
+    """Assemble today's snapshot from the configured source."""
+    from .config import PipelineConfig
+
+    cfg = cfg or PipelineConfig()
     as_of = date.today().isoformat()
 
-    indexes = [] if offline else _load_indexes()
-    state = _load_trades_state()
-    weights = _load_latest_weights()
+    if cfg.source.type == "custom":
+        data = _load_custom_facts(cfg.source.resolved_facts_file())
+        facts = [str(f) for f in data.get("facts", [])]
+        if facts or data.get("headline"):
+            return MarketSnapshot(
+                as_of=as_of, headline=data.get("headline"), facts=facts
+            )
+        log.info("Custom facts file empty/missing — using demo snapshot")
+        return _demo_snapshot(as_of)
 
-    has_live_data = bool(indexes or state or weights)
-    if not has_live_data:
+    indexes = [] if offline else _load_indexes()
+    state = _load_trades_state(cfg.source.resolved_trades_file())
+    weights = _load_latest_weights(cfg.source.resolved_weights_dir())
+
+    if not (indexes or state or weights):
         log.info("No live data sources available — using demo snapshot")
         return _demo_snapshot(as_of)
 

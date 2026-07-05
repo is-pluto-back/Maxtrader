@@ -57,7 +57,7 @@ class ContentPipeline:
     def _due_content_types(self) -> List[str]:
         """Daily brief + social + video script every run; newsletter only
         on its configured weekday."""
-        types = ["daily_brief", "social_thread", "video_script"]
+        types = ["daily_brief", "social_thread", "video_script", "production_pack"]
         if date.today().weekday() == self.cfg.newsletter_weekday:
             types.append("newsletter")
         return types
@@ -79,7 +79,7 @@ class ContentPipeline:
         force_provider: Optional[str] = None,
     ) -> RunReport:
         report = RunReport()
-        report.snapshot = build_snapshot(offline=offline)
+        report.snapshot = build_snapshot(self.cfg, offline=offline)
         log.info(
             "Snapshot ready: "
             + (report.snapshot.summary_lines()[1] if report.snapshot.demo_mode else report.snapshot.as_of)

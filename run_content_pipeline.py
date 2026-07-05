@@ -52,7 +52,7 @@ def main() -> int:
         "command",
         nargs="?",
         default="run",
-        choices=["run", "stats", "revenue", "schedule"],
+        choices=["run", "stats", "revenue", "schedule", "research", "metrics", "review"],
     )
     parser.add_argument("amount", nargs="?", type=float, help="revenue amount (for 'revenue')")
     parser.add_argument("--types", nargs="+", help="content types to generate")
@@ -64,7 +64,11 @@ def main() -> int:
         help="force a specific generation provider",
     )
     parser.add_argument("--source", default="other", help="revenue source (newsletter/affiliate/sponsor)")
-    parser.add_argument("--note", default="", help="revenue note")
+    parser.add_argument("--note", default="", help="note for revenue/metrics entries")
+    parser.add_argument("--channel", default="", help="channel for metrics entries")
+    parser.add_argument("--views", type=int, default=0, help="views for metrics")
+    parser.add_argument("--retention", type=float, default=0.0, help="avg retention %% for metrics")
+    parser.add_argument("--ctr", type=float, default=0.0, help="link CTR %% for metrics")
     args = parser.parse_args()
 
     cfg = load_pipeline_config()
@@ -78,6 +82,37 @@ def main() -> int:
         import json
 
         print(json.dumps(pipeline.ledger.stats(), indent=2))
+        return 0
+
+    if args.command == "research":
+        from content_pipeline.trends import research_ideas
+
+        ideas = research_ideas(cfg, offline=args.offline)
+        cfg.output_dir.mkdir(parents=True, exist_ok=True)
+        from datetime import date
+
+        path = cfg.output_dir / f"{date.today().isoformat()}-ideas.md"
+        path.write_text(ideas)
+        print(ideas)
+        print(f"\nSaved to {path}")
+        return 0
+
+    if args.command == "review":
+        print(pipeline.ledger.review(days=7))
+        return 0
+
+    if args.command == "metrics":
+        entry = pipeline.ledger.record_metrics(
+            args.channel or "unknown",
+            views=args.views,
+            retention_pct=args.retention,
+            ctr_pct=args.ctr,
+            note=args.note,
+        )
+        print(f"Logged metrics (id={entry})")
+        import json as _json
+
+        print(_json.dumps(pipeline.ledger.stats(), indent=2))
         return 0
 
     if args.command == "revenue":

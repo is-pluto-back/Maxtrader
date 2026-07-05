@@ -21,7 +21,13 @@ from .snapshot import MarketSnapshot
 
 log = logging.getLogger("content-pipeline.generator")
 
-CONTENT_TYPES = ("daily_brief", "social_thread", "newsletter", "video_script")
+CONTENT_TYPES = (
+    "daily_brief",
+    "social_thread",
+    "newsletter",
+    "video_script",
+    "production_pack",
+)
 
 
 @dataclass
@@ -53,9 +59,9 @@ _PROMPTS = {
     ),
     "newsletter": (
         "Write a weekly markdown newsletter (600-800 words) titled "
-        "'{brand} Weekly'. Sections: 'The Week in One Paragraph', a regime "
-        "deep-dive explaining what the signal means in plain English, "
-        "'Where the Model Is Rotating' with the target weights, and 'What "
+        "'{brand} Weekly'. Sections: 'The Week in One Paragraph', a "
+        "deep-dive explaining the week's most important development in "
+        "plain English, key data points, and 'What "
         "We're Watching Next Week' (3 bullets). Voice: {voice}. Use ONLY "
         "the facts provided; never fabricate numbers."
     ),
@@ -70,21 +76,43 @@ _PROMPTS = {
         "soft follow/subscribe CTA plus a spoken 'not financial advice'. "
         "Use ONLY the facts provided; never fabricate numbers."
     ),
+    "production_pack": (
+        "Create today's complete production pack in markdown for a "
+        "faceless/AI-influencer content operation. Sections: (1) Scripts "
+        "— short-form primary with retention structure (3s HOOK, "
+        "problem-agitation, value delivery, CTA), each beat with "
+        "on-screen text and voiceover emotion notes, plus YouTube "
+        "long-form and platform adaptations; (2) Visuals — copy-paste "
+        "prompts for Midjourney/Flux images and Runway/Kling/Luma video "
+        "clips, prepending the character consistency block if a persona "
+        "is given; (3) Voiceover direction (pace, emphasis, pauses); "
+        "(4) Edit checklist (cuts, captions, music); (5) Distribution — "
+        "3 title options, description, hashtags per platform, posting "
+        "schedule, metrics to track; (6) Monetization hooks. Persona: "
+        "{persona}. Use ONLY the facts provided; never fabricate."
+    ),
 }
 
 
 def _system_prompt(cfg: PipelineConfig) -> str:
     return (
         f"You are the writer for '{cfg.brand.name}' — {cfg.brand.tagline} "
-        f"Voice: {cfg.brand.voice} You write about an automated adaptive "
-        "rotation trading strategy. Never give direct buy/sell advice, never "
-        "promise returns, and never invent data that was not provided."
+        f"Voice: {cfg.brand.voice} You write about {cfg.brand.subject}. "
+        "Never give direct financial buy/sell advice, never promise "
+        "outcomes, and never invent data that was not provided."
     )
 
 
 def _user_prompt(content_type: str, cfg: PipelineConfig, snap: MarketSnapshot) -> str:
     instructions = _PROMPTS[content_type].format(
-        brand=cfg.brand.name, date=snap.as_of, voice=cfg.brand.voice
+        brand=cfg.brand.name,
+        date=snap.as_of,
+        voice=cfg.brand.voice,
+        persona=(
+            cfg.persona.consistency_block()
+            if cfg.persona.enabled
+            else "none — faceless/brand-graphic style"
+        ),
     )
     facts = "\n".join(snap.summary_lines())
     return f"{instructions}\n\nToday's facts:\n{facts}"
@@ -142,16 +170,20 @@ def _template_fallback(content_type: str, cfg: PipelineConfig, snap: MarketSnaps
         return templates.social_thread(snap, cfg.brand.name)
     if content_type == "video_script":
         return templates.video_script(snap, cfg.brand.name)
+    if content_type == "production_pack":
+        return templates.production_pack(snap, cfg)
     return templates.newsletter(snap, cfg.brand.name, cfg.brand.tagline)
 
 
 def _title_for(content_type: str, cfg: PipelineConfig, snap: MarketSnapshot) -> str:
     if content_type == "daily_brief":
-        return f"{cfg.brand.name} — Daily Market Brief ({snap.as_of})"
+        return f"{cfg.brand.name} — Daily Brief ({snap.as_of})"
     if content_type == "social_thread":
         return f"{cfg.brand.name} — Daily Thread ({snap.as_of})"
     if content_type == "video_script":
         return f"{cfg.brand.name} — Daily Short Script ({snap.as_of})"
+    if content_type == "production_pack":
+        return f"{cfg.brand.name} — Production Pack ({snap.as_of})"
     return f"{cfg.brand.name} Weekly ({snap.as_of})"
 
 

@@ -27,7 +27,7 @@ class handler(BaseHTTPRequestHandler):
 
         try:
             cfg = load_pipeline_config()
-            snap = build_snapshot()
+            snap = build_snapshot(cfg)
             content = monetize(
                 generate(content_type, cfg, snap), cfg.monetization
             )

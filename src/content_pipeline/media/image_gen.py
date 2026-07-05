@@ -65,7 +65,20 @@ def _header(draw, width: int, brand: str, date_str: str, y: int = 60) -> int:
 def _market_card(snap: MarketSnapshot, cfg: PipelineConfig, size, path: Path) -> Path:
     img, draw = _new_card(size)
     w, h = size
-    y = _header(draw, w, cfg.brand.name, f"Daily Market Brief — {snap.as_of}")
+    y = _header(draw, w, cfg.brand.name, f"Daily Brief — {snap.as_of}")
+
+    if snap.headline:
+        import textwrap as _tw
+
+        for line in _tw.wrap(snap.headline, width=32)[:3]:
+            draw.text((60, y), line, font=_font(48), fill=FG)
+            y += 62
+        y += 20
+        for fact in snap.facts[:4]:
+            for line in _tw.wrap(f"• {fact}", width=48)[:2]:
+                draw.text((60, y), line, font=_font(32), fill=MUTED)
+                y += 44
+            y += 10
 
     for ix in snap.indexes[:4]:
         color = GREEN if ix.change_pct >= 0 else RED
@@ -129,6 +142,36 @@ def _cta_frame(cfg: PipelineConfig, size, path: Path) -> Path:
     return path
 
 
+def hook_text(snap: MarketSnapshot) -> str:
+    """Short scroll-stopping line derived from the day's strongest fact."""
+    if snap.headline:
+        return snap.headline
+    if snap.indexes:
+        ix = max(snap.indexes, key=lambda i: abs(i.change_pct))
+        return f"{ix.name} {ix.change_pct:+.2f}% — what everyone missed"
+    return "Today's signal, in 60 seconds"
+
+
+def _thumbnail_card(snap: MarketSnapshot, cfg: PipelineConfig, path: Path) -> Path:
+    """1280x720 YouTube-style thumbnail: huge hook text, accent bar."""
+    import textwrap as _tw
+
+    img, draw = _new_card((1280, 720))
+    text = hook_text(snap)
+    lines = _tw.wrap(text, width=18)[:3]
+    size = 96 if len(lines) <= 2 else 76
+    y = (720 - len(lines) * (size + 18)) // 2 - 30
+    for line in lines:
+        draw.text((70, y), line, font=_font(size), fill=FG)
+        y += size + 18
+    draw.rounded_rectangle([70, y + 14, 470, y + 30], radius=8, fill=ACCENT)
+    draw.text((70, 640), cfg.brand.name.upper(), font=_font(34), fill=ACCENT)
+    if snap.demo_mode:
+        draw.text((1050, 640), "SAMPLE", font=_font(30), fill=RED)
+    img.save(path)
+    return path
+
+
 def _ai_hero_image(snap: MarketSnapshot, cfg: PipelineConfig, path: Path) -> Optional[Path]:
     """Optional AI-generated hero via OpenAI's image API."""
     import requests
@@ -180,6 +223,10 @@ def render_cards(
         hero = _ai_hero_image(snap, cfg, out_dir / f"{d}-card-hero.png")
         if hero:
             images.insert(0, hero)
+
+    # High-CTR thumbnail for the day's video (kept out of `images` so it
+    # isn't posted as a social card; publishers use cards, humans use this)
+    _thumbnail_card(snap, cfg, out_dir / f"{d}-thumbnail.png")
 
     frames = [
         _market_card(snap, cfg, vertical, out_dir / f"{d}-frame-1-market.png"),

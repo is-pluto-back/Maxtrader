@@ -1,0 +1,58 @@
+# Autonomous daily content run for the Maxtrader Content Engine.
+# Runs weekdays 45 min after the US close, publishes to every channel
+# whose secret is configured, and commits generated blog posts back.
+#
+# Setup: repo Settings -> Secrets and variables -> Actions -> add any of:
+#   ANTHROPIC_API_KEY, OPENAI_API_KEY, ELEVENLABS_API_KEY,
+#   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, DISCORD_WEBHOOK_URL,
+#   TWITTER_OAUTH2_ACCESS_TOKEN, BUTTONDOWN_API_KEY
+# Missing secrets simply disable that provider/channel.
+
+name: Daily content
+
+on:
+  schedule:
+    - cron: "45 21 * * 1-5"   # 21:45 UTC, Mon-Fri
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      # Only the content pipeline's deps — not the full research stack.
+      - name: Install dependencies
+        run: pip install requests PyYAML python-dotenv Pillow imageio-ffmpeg
+
+      - name: Run the content pipeline
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TWITTER_OAUTH2_ACCESS_TOKEN: ${{ secrets.TWITTER_OAUTH2_ACCESS_TOKEN }}
+          BUTTONDOWN_API_KEY: ${{ secrets.BUTTONDOWN_API_KEY }}
+        run: python run_content_pipeline.py
+
+      - name: Commit blog posts back to the repo
+        run: |
+          git config user.name "content-engine[bot]"
+          git config user.email "content-engine-bot@users.noreply.github.com"
+          git add content/posts data/content_ledger.json || true
+          if git diff --cached --quiet; then
+            echo "No new posts to commit."
+          else
+            git commit -m "content: daily posts $(date -u +%F)"
+            git push
+          fi
