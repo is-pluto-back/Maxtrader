@@ -1,6 +1,0 @@
-# Minimal dependencies for the Vercel serverless functions.
-# (The repo-root requirements.txt is the full research stack — do NOT
-# use it here; Vercel functions have a 250 MB limit.)
-requests>=2.31.0
-PyYAML>=6.0
-Pillow>=10.0.0

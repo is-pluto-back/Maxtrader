@@ -129,35 +129,6 @@ finrl-trading-agent/
 └── venv/                         # Python virtual environment
 ```
 
-## Content Engine (automated content-revenue pipeline)
-
-The trading system's daily output (regime signal, rotations, P&L) doubles as
-raw material for monetized content. The content engine auto-writes a daily
-market brief, an X/Twitter thread, a 60-second video script, and a weekly
-newsletter; renders branded image cards and a vertical short video (Pillow +
-ffmpeg, no keys needed); injects monetization (newsletter CTAs, affiliate
-links, sponsor slots); and publishes to every channel you've connected — on a
-cron schedule, hands-free.
-
-```bash
-# Works with zero API keys (template mode, publish nowhere):
-python run_content_pipeline.py --dry-run
-
-# Print the cron lines that make it fully autonomous:
-python run_content_pipeline.py schedule
-
-# Preview the public site + API locally:
-python web/dev_server.py
-```
-
-**Deploy to Vercel:** import the repo at [vercel.com/new](https://vercel.com/new)
-with Root Directory = `web` — you get a public content site plus a Vercel Cron
-job that runs the whole pipeline autonomously every trading day.
-
-See [docs/CONTENT_PIPELINE.md](docs/CONTENT_PIPELINE.md) for channel setup
-(Telegram, Discord, X, Buttondown, GitHub Pages blog), media generation
-(images / video / TTS voiceover), Vercel deployment, and the revenue model.
-
 ## Strategy Overview
 
 The **Adaptive Multi-Asset Rotation Strategy** rotates capital across 4 asset groups (Growth/Tech, Cyclical, Real Assets, Defensive) based on market regime detection:
