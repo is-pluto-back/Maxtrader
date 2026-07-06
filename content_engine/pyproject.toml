@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "maxtrader-content-engine"
+version = "0.1.0"
+description = "Generates daily reports, weekly reviews, and social posts from Maxtrader trading data"
+requires-python = ">=3.8"
+dependencies = []
+
+[project.optional-dependencies]
+llm = ["anthropic>=0.40"]
+
+[project.scripts]
+content-engine = "content_engine.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["content_engine*"]
